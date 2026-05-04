@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.DS_Store
+logs/
+output_atas/
+src/cache/*.pkl
+data/chroma_db/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/

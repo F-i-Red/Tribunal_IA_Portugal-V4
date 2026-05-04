@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════
+#  Tribunal IA Portugal V5 — Dependências completas
+# ═══════════════════════════════════════════════════
+
+# Core
+httpx>=0.28.0
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+tenacity>=9.0.0
+typing-extensions>=4.11.0
+
+# Interface
+streamlit>=1.38.0
+
+# CLI moderna
+typer>=0.12.0
+rich>=13.7.0
+
+# Logging estruturado
+structlog>=24.1.0
+
+# PDF — leitura de provas
+PyMuPDF>=1.24.0
+
+# PDF — exportação de atas
+reportlab>=4.2.0
+
+# RAG — embeddings locais (opcional mas recomendado)
+# sentence-transformers>=3.0.0   # descomenta para embeddings locais
+# numpy>=1.26.0                   # necessário para embeddings
+
+# Testes
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
