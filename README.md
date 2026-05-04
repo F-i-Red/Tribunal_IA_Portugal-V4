@@ -8,9 +8,9 @@ Concebido para fins educativos, académicos e de prova de conceito.
 
 ---
 
-## 🆕 V5 — Tudo o que foi implementado
+## 🆕 V4 — Tudo o que foi implementado
 
-| Funcionalidade | V4 | V5 |
+| Funcionalidade | V3 | V4 |
 |---|---|---|
 | Pydantic Settings v2 | ✅ | ✅ |
 | Agentes com herança | ✅ | ✅ |
@@ -36,8 +36,8 @@ Concebido para fins educativos, académicos e de prova de conceito.
 
 ### 1. Instalar
 ```bash
-git clone https://github.com/F-i-Red/Tribunal_IA_Portugal-V5
-cd Tribunal_IA_Portugal-V5
+git clone https://github.com/F-i-Red/Tribunal_IA_Portugal-V4
+cd Tribunal_IA_Portugal-V4
 pip install -r requirements.txt
 ```
 
@@ -154,7 +154,7 @@ python gerir_base.py --historico
 
 ---
 
-## 🔄 Fluxo V5
+## 🔄 Fluxo V4
 
 ```
 Caso (texto + PDFs opcionais)
@@ -190,7 +190,7 @@ Histórico de casos
 
 ## 📊 Relatório de Consistência e Incerteza
 
-Novo em V5. Para cada caso, o sistema gera:
+Novo em V4. Para cada caso, o sistema gera:
 
 - **Convergências** — factos em que as 3 sentenças concordam (alta certeza)
 - **Divergências** — onde as sentenças diferem (revela discricionariedade)
@@ -227,7 +227,7 @@ pytest tests/test_export.py -v         # exportação PDF
 
 ---
 
-## 🏗️ Arquitectura V5
+## 🏗️ Arquitectura V4
 
 ```
 src/
@@ -243,7 +243,7 @@ src/
 
 ---
 
-## 🚀 Roadmap V6
+## 🚀 Roadmap V5
 
 - [ ] Embeddings híbridos com sentence-transformers PT
 - [ ] Interface multi-idioma (EN para comparação com ECHR)
