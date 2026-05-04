@@ -1,0 +1,100 @@
+version: '3.9'
+
+# ═══════════════════════════════════════════════════════════════
+#  Tribunal IA Portugal V5 — Docker Compose
+#
+#  Uso básico (OpenRouter):
+#    docker compose up -d
+#
+#  Com Ollama local (soberania de dados):
+#    docker compose --profile ollama up -d
+#
+#  Variáveis de ambiente: cria .env a partir de .env.example
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Aplicação principal ─────────────────────────────────────
+  tribunal:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tribunal_ia_v5
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8501}:8501"
+    env_file:
+      - ../.env
+    volumes:
+      # Dados persistentes
+      - tribunal_leis:/app/data/leis
+      - tribunal_jurisprudencia:/app/data/jurisprudencia
+      - tribunal_precedentes:/app/data/precedentes
+      - tribunal_atas:/app/output_atas
+      - tribunal_cache:/app/src/cache/data
+      - tribunal_historico:/app/src/historico/data
+      - tribunal_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - tribunal_net
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false
+
+  # ── Ollama (backend local — opcional) ───────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tribunal_ollama
+    restart: unless-stopped
+    profiles:
+      - ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - tribunal_net
+    # Para GPU NVIDIA descomenta:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  tribunal_leis:
+    driver: local
+  tribunal_jurisprudencia:
+    driver: local
+  tribunal_precedentes:
+    driver: local
+  tribunal_atas:
+    driver: local
+  tribunal_cache:
+    driver: local
+  tribunal_historico:
+    driver: local
+  tribunal_logs:
+    driver: local
+  ollama_models:
+    driver: local
+
+networks:
+  tribunal_net:
+    driver: bridge
