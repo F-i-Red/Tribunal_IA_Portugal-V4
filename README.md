@@ -7,7 +7,7 @@ Concebido para fins educativos, académicos e de prova de conceito.
 > Para situações reais: [Ordem dos Advogados de Portugal](https://www.oa.pt)
 
 ---
-**O modelo de inteligência artificial grátis, comete erros e não consegue o que um modelo pago consegue fazer. Aqui usei um modelo grátis. É apenas para prova de conceito.**
+**O modelo de inteligência artificial grátis comete erros e não consegue o que um modelo pago consegue fazer. Aqui usei um modelo grátis. É apenas para prova de conceito.**
 ---
 
 ## 🆕 V4 — Tudo o que foi implementado
