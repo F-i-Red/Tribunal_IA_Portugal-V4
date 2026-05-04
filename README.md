@@ -1,4 +1,4 @@
-# 🏛️ Tribunal IA Portugal — V5
+# 🏛️ Tribunal IA Portugal — V4
 
 Simulador judicial de alta fidelidade para o Direito Português.
 Concebido para fins educativos, académicos e de prova de conceito.
