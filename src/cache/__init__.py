@@ -1,15 +1,15 @@
 """
-Sistema de cache semântico e de hash para reduzir chamadas LLM.
+Cache semântico por hash de prompt. V4 — thread-safe, persistente.
 """
+from __future__ import annotations
 
 import hashlib
-import json
-import os
 import pickle
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 from ..utils.config import get_config
 
@@ -26,54 +26,56 @@ class CacheEntry:
 
 
 class SemanticCache:
-    """
-    Cache de respostas LLM por hash do prompt.
-    Persiste em disco (JSON + pickle) para sobreviver reinícios.
-    """
-
-    def __init__(self, pasta_cache: Optional[Path] = None):
+    def __init__(self, pasta_cache: Optional[Path] = None) -> None:
         cfg = get_config()
         self.pasta = pasta_cache or cfg.pasta_cache
         self.pasta.mkdir(parents=True, exist_ok=True)
         self._index: Dict[str, CacheEntry] = {}
+        self._lock = threading.Lock()
         self._carregar()
 
-    def _carregar(self):
-        """Carrega índice do disco."""
-        index_path = self.pasta / "cache_index.pkl"
-        if index_path.exists():
+    def _carregar(self) -> None:
+        path = self.pasta / "cache_index.pkl"
+        if path.exists():
             try:
-                with open(index_path, "rb") as f:
+                with open(path, "rb") as f:
                     self._index = pickle.load(f)
             except Exception:
                 self._index = {}
 
-    def _guardar(self):
-        """Persiste índice no disco."""
-        index_path = self.pasta / "cache_index.pkl"
-        with open(index_path, "wb") as f:
-            pickle.dump(self._index, f)
+    def _guardar(self) -> None:
+        path = self.pasta / "cache_index.pkl"
+        try:
+            with open(path, "wb") as f:
+                pickle.dump(self._index, f)
+        except Exception:
+            pass
 
-    def _hash(self, prompt: str, system: Optional[str] = None, model: str = "") -> str:
-        """Gera hash determinístico do prompt."""
+    def _hash(self, prompt: str, system: Optional[str], model: str) -> str:
         texto = f"{model}:{system or ''}:{prompt}"
-        return hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+        return hashlib.sha256(texto.encode()).hexdigest()[:20]
 
     def get(self, prompt: str, system: Optional[str] = None, model: str = "") -> Optional[CacheEntry]:
-        """Procura no cache. Retorna None se não encontrar."""
         if not get_config().cache_enabled:
             return None
         h = self._hash(prompt, system, model)
-        return self._index.get(h)
+        with self._lock:
+            return self._index.get(h)
 
-    def put(self, prompt: str, response: str, system: Optional[str] = None,
-            model: str = "", tokens_input: int = 0, tokens_output: int = 0,
-            cost_usd: float = 0.0):
-        """Guarda resposta no cache."""
+    def put(
+        self,
+        prompt: str,
+        response: str,
+        system: Optional[str] = None,
+        model: str = "",
+        tokens_input: int = 0,
+        tokens_output: int = 0,
+        cost_usd: float = 0.0,
+    ) -> None:
         if not get_config().cache_enabled:
             return
         h = self._hash(prompt, system, model)
-        self._index[h] = CacheEntry(
+        entry = CacheEntry(
             prompt_hash=h,
             response=response,
             model=model,
@@ -82,43 +84,41 @@ class SemanticCache:
             tokens_output=tokens_output,
             cost_usd=cost_usd,
         )
-        self._guardar()
+        with self._lock:
+            self._index[h] = entry
+            self._guardar()
 
     def estatisticas(self) -> Dict:
-        """Retorna estatísticas do cache."""
-        total_hits = len(self._index)
-        total_tokens_in = sum(e.tokens_input for e in self._index.values())
-        total_tokens_out = sum(e.tokens_output for e in self._index.values())
-        total_cost = sum(e.cost_usd for e in self._index.values())
+        with self._lock:
+            total = len(self._index)
+            cost = sum(e.cost_usd for e in self._index.values())
         return {
-            "entradas": total_hits,
-            "tokens_input_total": total_tokens_in,
-            "tokens_output_total": total_tokens_out,
-            "custo_total_usd": round(total_cost, 4),
-            "poupanca_estimada_usd": round(total_cost * 0.8, 4),  # 80% das chamadas evitadas
+            "entradas": total,
+            "custo_total_usd": round(cost, 6),
+            "poupanca_estimada_usd": round(cost * 0.8, 6),
         }
 
-    def limpar(self, max_idade_dias: int = 30):
-        """Remove entradas antigas."""
+    def limpar(self, max_idade_dias: int = 30) -> int:
         agora = time.time()
         limite = max_idade_dias * 86400
-        removidas = 0
-        for h in list(self._index.keys()):
-            if agora - self._index[h].timestamp > limite:
+        with self._lock:
+            chaves = [h for h, e in self._index.items() if agora - e.timestamp > limite]
+            for h in chaves:
                 del self._index[h]
-                removidas += 1
-        if removidas:
-            self._guardar()
-        return removidas
+            if chaves:
+                self._guardar()
+        return len(chaves)
 
 
 _cache_instance: Optional[SemanticCache] = None
+_cache_lock = threading.Lock()
 
 
 def get_cache() -> SemanticCache:
     global _cache_instance
-    if _cache_instance is None:
-        _cache_instance = SemanticCache()
+    with _cache_lock:
+        if _cache_instance is None:
+            _cache_instance = SemanticCache()
     return _cache_instance
 
 
