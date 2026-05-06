@@ -1,50 +1,48 @@
 @echo off
-REM Tribunal IA Portugal V4 — Arranque Windows
-
+REM Tribunal IA Portugal V6 — Arranque Windows
 SET PORT=8501
 IF NOT "%1"=="" SET PORT=%1
 
 echo.
-echo ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-echo   🏛️  TRIBUNAL IA PORTUGAL V4
-echo ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+echo ================================================================
+echo   🏛  TRIBUNAL IA PORTUGAL V6  🇵🇹
+echo   RAG Hibrido + Reranking - LangGraph - FastAPI - TEDH
+echo ================================================================
 echo.
 
 cd /d "%~dp0"
 
 IF NOT EXIST ".env" (
-    echo ⚠️  Ficheiro .env nao encontrado.
+    echo ⚠️  A criar .env...
     copy .env.example .env
-    echo    .env criado. Edita com a tua chave OpenRouter antes de continuar.
+    echo    Edita .env com a tua OPENROUTER_API_KEY
     pause
 )
 
 echo 🔍 A verificar dependencias...
-python -c "import streamlit" 2>NUL
-IF ERRORLEVEL 1 (
-    echo 📦 A instalar dependencias...
+python -c "import streamlit, pydantic_settings, httpx" 2>NUL || (
+    echo 📦 A instalar dependencias base...
     pip install -r requirements.txt
 )
 
-mkdir data\leis 2>NUL
-mkdir data\jurisprudencia 2>NUL
-mkdir data\precedentes 2>NUL
-mkdir output_atas 2>NUL
-mkdir logs 2>NUL
-mkdir src\cache 2>NUL
-mkdir src\cache\data 2>NUL
-mkdir src\historico 2>NUL
-mkdir src\historico\data 2>NUL
+REM Criar todas as pastas necessarias
+for %%d in (data\leis data\jurisprudencia data\precedentes data\tedh output_atas logs src\cache\data src\historico\data) do (
+    if not exist "%%d" mkdir "%%d"
+)
 
 echo.
 echo 🚀 A iniciar na porta %PORT%...
-echo    URL: http://localhost:%PORT%
-echo    Para parar: Ctrl+C
+echo    Streamlit : http://localhost:%PORT%
+echo    Para a API: python api_server.py
 echo.
 
 streamlit run app.py ^
     --server.port %PORT% ^
     --server.headless true ^
-    --browser.gatherUsageStats false
+    --browser.gatherUsageStats false ^
+    --theme.primaryColor "#1a3a5c" ^
+    --theme.backgroundColor "#ffffff" ^
+    --theme.secondaryBackgroundColor "#f4f6f9" ^
+    --theme.textColor "#1a1a1a"
 
 pause

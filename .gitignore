@@ -8,10 +8,13 @@ env/
 .DS_Store
 logs/
 output_atas/
-src/cache/*.pkl
+src/cache/data/
+src/historico/data/
 data/chroma_db/
 *.egg-info/
 dist/
 build/
 .pytest_cache/
 .mypy_cache/
+*.pkl
+.streamlit/secrets.toml

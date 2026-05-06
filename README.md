@@ -1,144 +1,196 @@
-# 🏛️ Tribunal IA Portugal — V4
+# 🏛️ Tribunal IA Portugal — V6
 
-Simulador judicial de alta fidelidade para o Direito Português.
-Concebido para fins educativos, académicos e de prova de conceito.
+Simulador judicial com RAG Híbrido, LangGraph, FastAPI, modo contraditório e análise TEDH.
 
-> ⚠️ **Aviso Legal:** Não constitui parecer jurídico nem decisão judicial.
+> ⚠️ **Aviso Legal:** Fins exclusivamente educativos. Não constitui parecer jurídico.
 > Para situações reais: [Ordem dos Advogados de Portugal](https://www.oa.pt)
 
 ---
-**O modelo de inteligência artificial grátis comete erros e não consegue o que um modelo pago consegue fazer. Aqui usei um modelo grátis. É apenas para prova de conceito.**
----
 
-## 🆕 V4 — Tudo o que foi implementado
+## 🆕 V6 — O que é novo
 
-| Funcionalidade | V3 | V4 |
+| Funcionalidade | V5 | V6 |
 |---|---|---|
-| Pydantic Settings v2 | ✅ | ✅ |
-| Agentes com herança | ✅ | ✅ |
-| Prompts centralizados | ✅ | ✅ |
-| Thread-safe Brain + Cache | ✅ | ✅ |
-| **Ollama (soberania de dados)** | ❌ | ✅ |
-| **RAG com metadata filtering** | ❌ | ✅ |
-| **Relatório de consistência** | ❌ | ✅ |
-| **Grau de incerteza jurídica** | ❌ | ✅ |
-| **Upload de PDF como prova** | ❌ | ✅ |
-| **Exportação de ata em PDF** | ❌ | ✅ |
-| **Histórico de casos** | ❌ | ✅ |
-| **Docker + docker-compose** | ❌ | ✅ |
-| **CLI com typer + rich** | ❌ | ✅ |
-| **Logger structlog** | ❌ | ✅ |
-| Passo 2 - documentos no wizard | ❌ | ✅ |
-| Wizard 5 passos | ❌ | ✅ |
-| 7 suites de testes | ❌ | ✅ |
+| RAG BM25 | ✅ | ✅ |
+| **RAG Híbrido BM25 + Embeddings** | ❌ | ✅ activo por defeito |
+| **Cross-encoder Reranking** | ❌ | ✅ |
+| **Modelo PT multilingual (multilingual-e5)** | ❌ | ✅ |
+| **LangGraph orquestração** | ❌ | ✅ com fallback imperativo |
+| **Modo Contraditório** | ❌ | ✅ utilizador como advogado |
+| **FastAPI REST backend** | ❌ | ✅ |
+| **Multi-idioma TEDH / ECHR** | ❌ | ✅ |
+| **Metadata filtering (diploma + instância)** | ✅ | ✅ melhorado |
+| Histórico de casos | ✅ | ✅ |
+| Exportação PDF | ✅ | ✅ |
+| Docker + Ollama | ✅ | ✅ melhorado |
 
 ---
 
 ## ⚡ Início Rápido
 
-### 1. Instalar
 ```bash
-git clone https://github.com/F-i-Red/Tribunal_IA_Portugal-V4
-cd Tribunal_IA_Portugal-V4
+git clone https://github.com/F-i-Red/Tribunal_IA_Portugal-V6
+cd Tribunal_IA_Portugal-V6
 pip install -r requirements.txt
-```
-
-### 2. Configurar
-```bash
 cp .env.example .env
-# Edita .env
-```
-
-### 3. Iniciar
-```bash
-# Interface web
+# Edita .env com OPENROUTER_API_KEY
 streamlit run app.py
-# ou
-./iniciar_interface.sh
-
-# CLI
-python main.py processar
-
-# Diagnóstico
-python verificar.py
 ```
 
 ---
 
-## 🤖 Backends Suportados
+## 🤖 Backends
 
 ### OpenRouter (cloud)
 ```env
 BACKEND=openrouter
 OPENROUTER_API_KEY=sk-or-...
-MODELO=openrouter/auto        # gratuito — testes
-MODELO=google/gemini-2.0-flash-001  # pago — produção
+MODELO=openrouter/free          # testes gratuitos
+MODELO=google/gemini-2.0-flash-001  # produção
 ```
 
-Chave gratuita: https://openrouter.ai/keys
-
-### Ollama (local — soberania de dados)
+### Ollama (local — soberania de dados total)
 ```env
 BACKEND=ollama
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODELO=llama3.3:70b
 ```
-
 ```bash
-# Instalar Ollama: https://ollama.ai
-ollama serve
-ollama pull llama3.3:70b
+ollama serve && ollama pull llama3.3:70b
 ```
 
-**Recomendado para .gov** — os dados nunca saem do servidor.
+---
+
+## 🔬 RAG Híbrido V6
+
+Pipeline de 3 fases:
+
+```
+Query
+  ↓
+[1] BM25 → top_k candidatos (lexical, rápido)
+  ↓
+[2] Embeddings multilinguais → score semântico
+    + Fusão RRF (Reciprocal Rank Fusion)
+  ↓
+[3] Cross-encoder Reranker → top_n final (qualidade máxima)
+```
+
+**Modelos de embeddings recomendados para Português:**
+
+| Modelo | Qualidade | Tamanho |
+|--------|-----------|---------|
+| `intfloat/multilingual-e5-large-instruct` | ⭐⭐⭐⭐⭐ | 560MB |
+| `intfloat/multilingual-e5-base` | ⭐⭐⭐⭐ | 280MB |
+| `neuralmind/bert-base-portuguese-cased` | ⭐⭐⭐⭐ | 440MB |
+| `paraphrase-multilingual-MiniLM-L12-v2` | ⭐⭐⭐ | 118MB |
+
+```env
+RAG_MODO=hibrido
+RAG_EMBEDDING_MODELO=intfloat/multilingual-e5-large-instruct
+RAG_RERANKING=true
+RAG_RERANKER_MODELO=cross-encoder/ms-marco-MiniLM-L-6-v2
+RAG_TOP_K=15    # candidatos antes do reranking
+RAG_TOP_N=6     # resultado final
+```
+
+---
+
+## 🔀 LangGraph
+
+O pipeline judicial é agora um **grafo declarativo** em vez de código imperativo:
+
+```
+anonimizar → rag → detetive → acusacao → defesa
+→ juiz_rigoroso → juiz_garantista → juiz_equilibrado
+→ consistencia → tedh → finalizar
+```
+
+Fallback automático para orquestração imperativa se LangGraph não estiver instalado.
+
+```env
+ORQUESTRACAO=langgraph   # ou: imperativo
+```
+
+---
+
+## ⚔️ Modo Contraditório
+
+Novo em V6. O utilizador intervém como **Advogado de Defesa**:
+
+1. Sistema gera Instrução + Acusação normalmente
+2. Utilizador lê a acusação e escreve os seus argumentos
+3. Sistema avalia juridicamente o argumento (feedback imediato)
+4. `DefesaAgent` incorpora os argumentos do utilizador
+5. Pipeline continua com defesa enriquecida
+
+Disponível na interface Streamlit (passo 4) e na CLI (`--contraditorio`).
+
+---
+
+## 🌍 Multi-idioma / TEDH
+
+Adiciona ficheiros `.txt` com jurisprudência ECHR em inglês em `data/tedh/`:
+
+```
+data/tedh/
+├── ECHR_Article6_FairTrial.txt
+├── ECHR_Article8_Privacy.txt
+├── ECHR_Article1_Protocol1_Property.txt
+└── ...
+```
+
+Fonte: https://hudoc.echr.coe.int
+
+O sistema analisa automaticamente o caso português à luz da jurisprudência europeia e avalia o risco de queixa a Estrasburgo.
+
+---
+
+## 🌐 API REST (FastAPI)
+
+```bash
+python api_server.py [--host 0.0.0.0] [--port 8000]
+# Docs: http://localhost:8000/docs
+```
+
+**Endpoints:**
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| `GET` | `/saude` | Health check |
+| `GET` | `/instancias` | Lista tribunais |
+| `POST` | `/instrucao` | Gera perguntas de instrução |
+| `POST` | `/processar` | Processa caso completo |
+| `POST` | `/contraditorio` | Submete argumento de defesa |
+| `GET` | `/ata/{id}/pdf` | Download PDF |
+| `GET` | `/ata/{id}/txt` | Download TXT |
+| `GET` | `/historico` | Lista casos |
+| `GET` | `/rag/stats` | Estatísticas RAG |
 
 ---
 
 ## 🐳 Docker
 
-### OpenRouter
 ```bash
-cd docker
-docker compose up -d
-```
+# Streamlit apenas
+cd docker && docker compose up -d
 
-### Com Ollama local
-```bash
-cd docker
+# Com API REST
+docker compose --profile api up -d
+
+# Com Ollama local
 docker compose --profile ollama up -d
-# Instalar modelo no container:
+
+# Completo
+docker compose --profile api --profile ollama up -d
+
+# Instalar modelo Ollama
 docker exec tribunal_ollama ollama pull llama3.3:70b
 ```
 
 ---
 
-## 📚 RAG — Base de Conhecimento
-
-```
-data/
-├── leis/           → Códigos e leis (Codigo_Penal.txt, etc.)
-├── jurisprudencia/ → Acórdãos e jurisprudência
-└── precedentes/    → Precedentes relevantes
-```
-
-Modos:
-- `bm25` — BM25 puro (sem dependências extra, default)
-- `hibrido` — BM25 + sentence-transformers (requer `pip install sentence-transformers`)
-- `api` — BM25 + embeddings via OpenRouter
-
-Metadata filtering automático por diploma e instância judicial.
-
-```bash
-# Gerir base
-python gerir_base.py --stats
-python gerir_base.py --reindexar
-python gerir_base.py --pesquisar "furto qualificado" --instancia TIC
-python gerir_base.py --historico
-```
-
----
-
-## 🏛️ Instâncias Judiciais
+## 🏛️ Instâncias Judiciais (11)
 
 | Código | Tribunal | Matéria |
 |--------|----------|---------|
@@ -146,110 +198,90 @@ python gerir_base.py --historico
 | `TCCR` | Tribunal Criminal | Penal — Julgamento |
 | `TCIC` | T. Central Instrução Criminal | Grande Criminalidade |
 | `TC_CIVEL` | Tribunal Cível | Direito Privado |
-| `TFM` | T. Família e Menores | Família / Menores |
+| `TFM` | T. Família e Menores | Família |
 | `TRAB` | Tribunal do Trabalho | Laboral |
 | `TAF` | T. Administrativo e Fiscal | Administrativo |
-| `TCOM` | Tribunal de Comércio | Comercial / Insolvência |
+| `TCOM` | Tribunal de Comércio | Comercial |
 | `TR` | Tribunal da Relação | 2ª Instância |
 | `STJ` | Supremo Tribunal de Justiça | 3ª Instância |
 | `TC` | Tribunal Constitucional | Constitucional |
 
 ---
 
-## 🔄 Fluxo V4
+## 🏗️ Arquitectura V6
 
 ```
-Caso (texto + PDFs opcionais)
-        ↓
-Anonimização RGPD
-        ↓
-RAG (BM25 + metadata filtering por instância e diploma)
-        ↓
-Instrução (perguntas específicas ao caso via LLM)
-        ↓
-┌──────────────────────────┐
-│ Agente Detetive          │
-│ Agente Acusação/MP       │  → sequencial (dependências)
-│ Agente Defesa            │
-└──────────────────────────┘
-        ↓
-┌─────────────────────────────┐
-│ Juiz Rigoroso               │
-│ Juiz Garantista             │  → paralelo (pagos) / sequencial (free/Ollama)
-│ Juiz Equilibrado            │
-└─────────────────────────────┘
-        ↓
-Agente Consistência + Incerteza
-        ↓
-Validação de citações (RAG)
-        ↓
-Ata TXT + PDF (ReportLab)
-        ↓
-Histórico de casos
+src/
+├── agents/         → 9 agentes (+ TEDHAgent + ContraditórioFeedbackAgent)
+├── api/            → FastAPI REST backend
+├── cache/          → Cache semântico thread-safe
+├── contraditorio/  → Modo contraditório (gestor de sessões)
+├── export/         → PDF (ReportLab) + leitura PDF (PyMuPDF)
+├── historico/      → Histórico persistente com pesquisa
+├── pipeline/       → CaseProcessor (LangGraph + fallback) + 11 instâncias
+├── prompts/        → Todos os prompts centralizados + TEDH + contraditório
+├── rag/            → BM25 + Embeddings + RRF + Reranking + multilíngue
+└── utils/          → Config · Brain (OpenRouter+Ollama) · Logger · Anonymizer
 ```
-
----
-
-## 📊 Relatório de Consistência e Incerteza
-
-Novo em V4. Para cada caso, o sistema gera:
-
-- **Convergências** — factos em que as 3 sentenças concordam (alta certeza)
-- **Divergências** — onde as sentenças diferem (revela discricionariedade)
-- **Pontos factuais mais frágeis** — onde a prova é questionada
-- **Grau de incerteza global** — Baixo / Médio / Alto / Muito Alto
-- **Recomendação ao cidadão** em linguagem acessível
-
----
-
-## 🔒 RGPD & Soberania de Dados
-
-- Anonimização automática antes de qualquer chamada API externa
-- Entidades: nomes, emails, telefones, NIFs, CCs, NISSs, moradas, IBANs, processos
-- Pseudónimos determinísticos por hash (`[PESSOA_4821]`, `[NIF_REMOVIDO]`)
-- Com Ollama: **zero dados saem do servidor** — soberania total
-- Hash + watermark em todos os documentos
 
 ---
 
 ## 🧪 Testes
 
 ```bash
-# Todos (não requer API key)
+# Todos (sem API key necessária)
 pytest tests/ -v
 
-# Por categoria
-pytest tests/test_anonymizer.py -v     # anonimização
-pytest tests/test_rag_v5.py -v         # RAG + metadata filtering
-pytest tests/test_historico.py -v      # histórico de casos
-pytest tests/test_config_v5.py -v      # configuração
-pytest tests/test_instancias.py -v     # detecção de instâncias
-pytest tests/test_export.py -v         # exportação PDF
+# Por módulo
+pytest tests/test_rag_v6.py -v          # RAG híbrido + TEDH
+pytest tests/test_contraditorio.py -v   # modo contraditório
+pytest tests/test_config_v6.py -v       # configuração
+pytest tests/test_historico.py -v       # histórico
+pytest tests/test_anonymizer.py -v      # RGPD
+pytest tests/test_instancias.py -v      # detecção de tribunais
 ```
 
 ---
 
-## 🏗️ Arquitectura V4
+## 📋 CLI
 
-```
-src/
-├── agents/         → BaseAgent + 6 agentes especializados
-├── cache/          → Cache semântico thread-safe
-├── export/         → PDF (ReportLab) + leitura de PDF (PyMuPDF)
-├── historico/      → Histórico persistente com pesquisa
-├── pipeline/       → CaseProcessor + 11 instâncias judiciais
-├── prompts/        → Todos os prompts centralizados
-├── rag/            → BM25 + metadata filtering + validador
-└── utils/          → Config · Brain · Logger · Anonymizer
+```bash
+# Processar caso
+python main.py processar "Fui despedido sem justa causa..."
+python main.py processar --instancia TRAB --contraditorio
+python main.py processar --modelo google/gemini-2.0-flash-001
+
+# Histórico
+python main.py historico --query "furto" --instancia TIC
+
+# RAG
+python main.py rag --stats
+python main.py rag --pesquisar "despedimento ilícito"
+python main.py rag --pesquisar "fair trial" --lingua en
+
+# API
+python main.py api --port 8000
+
+# Diagnóstico
+python verificar.py --rag --tedh --api
 ```
 
 ---
 
-## 🚀 Roadmap V5
+## 🔒 RGPD & Soberania
 
-- [ ] Embeddings híbridos com sentence-transformers PT
-- [ ] Interface multi-idioma (EN para comparação com ECHR)
-- [ ] Modo contraditório interactivo
-- [ ] API REST (FastAPI) para integração
-- [ ] Autenticação e multi-tenant para .gov
-- [ ] Observability (OpenTelemetry + Prometheus)
+- Anonimização automática antes de qualquer chamada externa
+- Com `BACKEND=ollama`: **zero dados saem do servidor**
+- Hash SHA-256 + watermark em todos os documentos
+- Pseudónimos determinísticos por caso (`[PESSOA_4821]`, `[NIF_REMOVIDO]`)
+
+---
+
+## 🚀 Roadmap V7
+
+- [ ] Autenticação multi-tenant para .gov (OAuth2 / SAML)
+- [ ] Interface React/Next.js separada (consumindo a FastAPI)
+- [ ] Embeddings fine-tuned em corpus jurídico PT
+- [ ] Análise de risco de recurso (probabilidade de reversão em 2ª instância)
+- [ ] Integração com bases de dados de jurisprudência nacionais
+- [ ] Suporte a documentos Word (.docx) como provas

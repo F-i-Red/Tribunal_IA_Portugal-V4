@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════
-#  Tribunal IA Portugal V5 — Dependências completas
-# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+#  Tribunal IA Portugal V6 — Dependências
+# ═══════════════════════════════════════════════════════════════
 
 # Core
 httpx>=0.28.0
@@ -10,26 +10,44 @@ pydantic-settings>=2.3.0
 tenacity>=9.0.0
 typing-extensions>=4.11.0
 
-# Interface
+# Interface Streamlit
 streamlit>=1.38.0
 
-# CLI moderna
+# CLI
 typer>=0.12.0
 rich>=13.7.0
 
 # Logging estruturado
 structlog>=24.1.0
 
-# PDF — leitura de provas
-PyMuPDF>=1.24.0
+# ── RAG Híbrido (ACTIVO POR DEFEITO em V6) ───────────────────
+# Embeddings multilinguais optimizados para Português
+sentence-transformers>=3.0.0
+# Inclui numpy e torch CPU automaticamente
 
-# PDF — exportação de atas
+# Reranking cross-encoder
+# (usa o mesmo pacote sentence-transformers)
+
+# ── Orquestração LangGraph ────────────────────────────────────
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# ── API REST FastAPI ──────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# ── PDF ───────────────────────────────────────────────────────
+PyMuPDF>=1.24.0
 reportlab>=4.2.0
 
-# RAG — embeddings locais (opcional mas recomendado)
-# sentence-transformers>=3.0.0   # descomenta para embeddings locais
-# numpy>=1.26.0                   # necessário para embeddings
-
-# Testes
+# ── Testes ───────────────────────────────────────────────────
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+httpx>=0.28.0   # para testar FastAPI
+
+# ── Notas ─────────────────────────────────────────────────────
+# sentence-transformers instala automaticamente:
+#   torch (CPU), numpy, transformers, huggingface-hub
+# Para GPU: pip install torch --index-url https://download.pytorch.org/whl/cu121
+# Para Ollama local: não requer dependências extra
