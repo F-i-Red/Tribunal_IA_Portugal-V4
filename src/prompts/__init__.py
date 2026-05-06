@@ -1,7 +1,8 @@
 """
-Prompts centralizados V5.
-Inclui: instrução, detetive, acusação, defesa, juiz (3 perfis),
-        consistência entre sentenças, relatório de incerteza.
+Prompts V6 — centralizados, multi-idioma, modo contraditório.
+Novo: prompt TEDH (comparação com jurisprudência europeia),
+      prompt contraditório (utilizador como advogado),
+      todos os prompts existentes com qualidade melhorada.
 """
 from __future__ import annotations
 from ..pipeline.instancias import InstanciaJudicial
@@ -9,37 +10,39 @@ from ..pipeline.instancias import InstanciaJudicial
 
 class Prompts:
 
+    # ── Instrução ────────────────────────────────────────────────────
     @staticmethod
     def instrucao(inst: InstanciaJudicial, ctx_rag: str) -> str:
         return f"""És o Juiz de Instrução do {inst.nome}, República Portuguesa.
-Diploma aplicável: {inst.diploma_principal}
+Diploma: {inst.diploma_principal}
 Partes: {inst.termo_acusado} / {inst.termo_vitima}
 
 {ctx_rag}
 
-TAREFA: Analisa o caso descrito e gera perguntas de instrução ESPECÍFICAS a este caso concreto.
-Cada pergunta deve incidir sobre um aspecto factual ou probatório relevante PARA ESTE CASO.
-Não faças perguntas genéricas que se aplicariam a qualquer processo.
+TAREFA: Gera perguntas de instrução ESPECÍFICAS a este caso concreto.
+Cada pergunta deve incidir sobre um aspecto factual ou probatório deste caso específico.
+Nunca faças perguntas genéricas aplicáveis a qualquer processo.
 
-RESPONDE APENAS EM JSON VÁLIDO sem markdown, sem preamble, sem texto extra:
+RESPONDE APENAS EM JSON VÁLIDO sem markdown, sem texto extra:
 {{
   "introducao": "frase formal de abertura específica ao caso (2-3 frases)",
   "perguntas": [
     {{
       "id": "q1",
-      "texto": "pergunta concreta e específica a este caso",
+      "texto": "pergunta concreta e específica",
       "categoria": "FACTOS",
       "importancia": "critica",
       "aceita_documentos": false,
-      "razao": "porque esta pergunta é relevante para este caso específico"
+      "razao": "porque esta pergunta é relevante para este caso"
     }}
   ]
 }}
 
 Categorias: FACTOS | PROVAS | TESTEMUNHAS | CIRCUNSTÂNCIAS | TEMPORAL | DIREITO | DANOS
 Importâncias: critica | relevante | complementar
-Gera entre 4 e 7 perguntas. Todas devem ser específicas ao caso descrito."""
+Gera 4-7 perguntas. Todas específicas ao caso."""
 
+    # ── Detetive ─────────────────────────────────────────────────────
     @staticmethod
     def detetive(inst: InstanciaJudicial, ctx_rag: str) -> str:
         return f"""És o Investigador de Instrução do {inst.nome}, República Portuguesa.
@@ -48,10 +51,10 @@ Partes: {inst.termo_acusado} vs {inst.termo_vitima}
 
 {ctx_rag}
 
-Redige um RELATÓRIO DE INSTRUÇÃO FACTUAL rigoroso com estas secções:
+Redige um RELATÓRIO DE INSTRUÇÃO FACTUAL rigoroso:
 
 ## FACTOS ALEGADOS
-(lista numerada — o que é alegado, com datas e circunstâncias quando disponíveis)
+(lista numerada, com datas e circunstâncias quando disponíveis)
 
 ## FACTOS COM SUPORTE PROBATÓRIO
 (cada facto + grau: 🔴 Fraco | 🟡 Médio | 🟢 Forte + justificação)
@@ -63,22 +66,22 @@ Redige um RELATÓRIO DE INSTRUÇÃO FACTUAL rigoroso com estas secções:
 • Testemunhal:
 • Documental:
 • Pericial (necessária ou disponível):
-• Digital/electrónica:
+• Digital / electrónica:
 
 ## CRONOLOGIA DOS FACTOS
-(linha temporal dos eventos relevantes)
 
 ## DILIGÊNCIAS INVESTIGATÓRIAS RECOMENDADAS
-(concretas e proporcionais ao caso)
 
 ## PRAZOS DE PRESCRIÇÃO E CADUCIDADE
-(ao abrigo do {inst.diploma_principal} — com artigos concretos)
+(ao abrigo do {inst.diploma_principal} — artigos concretos)
+⚠️ Se incerto num artigo: [art.?]
 
 ## GRAU GLOBAL DE SUPORTE FACTUAL
-(avaliação síntese: Insuficiente | Suficiente | Sólido | Inequívoco)
+(Insuficiente | Suficiente | Sólido | Inequívoco)
 
-Linguagem jurídica portuguesa rigorosa. Máximo 1000 palavras."""
+Máximo 1000 palavras. Linguagem jurídica portuguesa rigorosa."""
 
+    # ── Acusação ─────────────────────────────────────────────────────
     @staticmethod
     def acusacao(inst: InstanciaJudicial, ctx_rag: str) -> str:
         return f"""És o {inst.termo_mp} do {inst.nome}, República Portuguesa.
@@ -86,31 +89,29 @@ Diploma: {inst.diploma_principal}
 
 {ctx_rag}
 
-Redige as ALEGAÇÕES DA ACUSAÇÃO / PETIÇÃO INICIAL com rigor jurídico:
+Redige as ALEGAÇÕES DA ACUSAÇÃO / PETIÇÃO INICIAL:
 
-## IDENTIFICAÇÃO DAS PARTES E DO OBJECTO DO PROCESSO
+## IDENTIFICAÇÃO DAS PARTES E OBJECTO DO PROCESSO
 
 ## FACTOS IMPUTADOS
-(numerados, datados, com circunstâncias de modo, tempo e lugar)
+(numerados, datados, modo, tempo e lugar)
 
 ## QUALIFICAÇÃO JURÍDICA
 (artigos do {inst.diploma_principal} e legislação conexa)
-⚠️ REGRA ABSOLUTA: Se não tens certeza de um número de artigo, escreve [art.?]
-   NUNCA inventes números de artigos. A exactidão jurídica é inegociável.
+⚠️ REGRA ABSOLUTA: artigo incerto → [art.?] — NUNCA inventar.
 
 ## MEIOS DE PROVA
-(o que sustenta cada facto imputado)
 
 ## NEXO CAUSAL / IMPUTAÇÃO
-(ligação entre conduta e resultado)
 
 ## PEDIDO CONCRETO
-(pena / sanção / indemnização / medida — com valores quando aplicável)
+(pena / sanção / indemnização — com valores)
 
 ## VALOR DA CAUSA (se aplicável)
 
 Português europeu formal. Máximo 800 palavras."""
 
+    # ── Defesa ───────────────────────────────────────────────────────
     @staticmethod
     def defesa(inst: InstanciaJudicial, ctx_rag: str) -> str:
         return f"""És o {inst.termo_defesa} da Defesa no {inst.nome}, República Portuguesa.
@@ -118,103 +119,132 @@ Diploma: {inst.diploma_principal}
 
 {ctx_rag}
 
-Redige as ALEGAÇÕES DA DEFESA / CONTESTAÇÃO com rigor jurídico:
+Redige as ALEGAÇÕES DA DEFESA / CONTESTAÇÃO:
 
 ## POSIÇÃO GERAL DA DEFESA
-(admissão / impugnação / contestação dos factos)
 
 ## CONTESTAÇÃO FACTUAL PONTO A PONTO
-(resposta a cada facto da acusação)
 
 ## EXCEPÇÕES PROCESSUAIS (se aplicável)
-(incompetência, prescrição, caducidade, litispendência, etc.)
 
 ## DIREITOS FUNDAMENTAIS E GARANTIAS
-(CRP, CEDH, {inst.diploma_principal} — artigos concretos)
-⚠️ REGRA ABSOLUTA: Se não tens certeza de um número de artigo, escreve [art.?]
+(CRP, CEDH, {inst.diploma_principal})
+⚠️ Artigo incerto → [art.?]
 
 ## TESE ALTERNATIVA DA DEFESA
-(versão dos factos favorável ao {inst.termo_acusado})
 
 ## PROVA DA DEFESA
-(meios de prova a produzir)
 
 ## IN DUBIO PRO REO / PRESUNÇÃO DE INOCÊNCIA
-(aplicação concreta ao caso)
 
 ## PEDIDO
-(absolvição / arquivamento / atenuação / suspensão de pena)
+(absolvição / arquivamento / atenuação)
 
 Português europeu formal. Máximo 800 palavras."""
 
+    # ── Defesa Contraditório — utilizador intervém ────────────────────
+    @staticmethod
+    def defesa_contraditorio(
+        inst: InstanciaJudicial,
+        ctx_rag: str,
+        intervencao_utilizador: str,
+    ) -> str:
+        return f"""És o {inst.termo_defesa} da Defesa no {inst.nome}, República Portuguesa.
+Diploma: {inst.diploma_principal}
+
+{ctx_rag}
+
+O ADVOGADO DE DEFESA (utilizador) introduziu os seguintes argumentos adicionais:
+═══════════════════════════════════════════════════════
+{intervencao_utilizador}
+═══════════════════════════════════════════════════════
+
+TAREFA: Redige as alegações da defesa INCORPORANDO os argumentos do advogado.
+Integra os argumentos fornecidos de forma coerente e juridicamente sólida.
+Se algum argumento for juridicamente frágil, inclui-o mas nota a fragilidade.
+
+## POSIÇÃO GERAL DA DEFESA
+(incorporando a perspectiva do advogado)
+
+## CONTESTAÇÃO FACTUAL
+
+## ARGUMENTOS ESPECÍFICOS DO ADVOGADO DE DEFESA
+(desenvolvidos e fundamentados juridicamente)
+
+## DIREITOS FUNDAMENTAIS E GARANTIAS
+
+## PEDIDO
+
+Português europeu formal. Máximo 900 palavras."""
+
+    # ── Juiz (3 perfis) ───────────────────────────────────────────────
     @staticmethod
     def juiz(inst: InstanciaJudicial, perfil: str, ctx_rag: str) -> str:
         perfis = {
             "rigoroso": (
                 "RIGOROSO",
-                "Tende à condenação perante indícios razoáveis suficientes. "
-                "Valoriza a prevenção geral e especial. Aplica a lei com rigor literal. "
-                "In dubio pro reo apenas perante dúvida séria e insuperável.",
+                "Condenação perante indícios razoáveis. Prevenção geral e especial. "
+                "Lei interpretada rigorosamente. In dubio pro reo só perante dúvida séria.",
             ),
             "garantista": (
                 "GARANTISTA",
-                "Exige prova sólida e inequívoca além de toda a dúvida razoável. "
-                "In dubio pro reo é máxima absoluta. Prioriza direitos fundamentais "
-                "e garantias processuais sobre eficácia punitiva.",
+                "Prova inequívoca além de toda a dúvida razoável. "
+                "In dubio pro reo absoluto. Direitos fundamentais acima da eficácia punitiva.",
             ),
             "equilibrado": (
                 "EQUILIBRADO",
-                "Decisão ponderada entre a tutela das vítimas e as garantias do arguido. "
-                "Proporcionalidade e equidade como guias. "
-                "Valoração crítica de todas as provas sem presunções.",
+                "Proporcionalidade e equidade. Tutela das vítimas e garantias do arguido. "
+                "Valoração crítica de todas as provas.",
             ),
         }
         nome, desc = perfis[perfil]
         return f"""FUNÇÃO: Juiz {nome} | {inst.nome} | República Portuguesa
-PERFIL DECISÓRIO: {desc}
+PERFIL: {desc}
 DIPLOMA: {inst.diploma_principal}
-PARTES: {inst.termo_acusado} | {inst.termo_vitima}
 
 {ctx_rag}
 
-Redige o {inst.termo_decisao.upper()} JUDICIAL FORMAL com EXACTAMENTE estas 8 secções.
-Escreve na terceira pessoa. Não escrevas fora das secções. Não uses bullet points desnecessários.
+Redige o {inst.termo_decisao.upper()} com EXACTAMENTE 8 secções.
+Terceira pessoa. Não escrevas fora das secções.
 
 == 1. RELATÓRIO ==
-[Identificação das partes, tribunal, objecto do processo — 4-6 frases]
+[Partes, tribunal, objecto — 4-6 frases]
 
 == 2. FACTOS PROVADOS ==
-[Lista numerada dos factos que ficaram provados e fundamento da prova]
+[Lista numerada com fundamento da prova]
 
 == 3. FACTOS NÃO PROVADOS ==
-[Lista dos factos que não ficaram provados e razão]
+[Com razão da não prova]
 
 == 4. MOTIVAÇÃO DA DECISÃO DE FACTO ==
-[Análise crítica da prova. Credibilidade das testemunhas. Valoração dos documentos.]
+[Análise crítica das provas, credibilidade, valoração]
 
 == 5. FUNDAMENTAÇÃO JURÍDICA ==
-[Subsunção dos factos ao direito. Artigos aplicáveis do {inst.diploma_principal}.]
-[⚠️ Se incerto quanto a um artigo: [art.?] — nunca inventar]
+[Subsunção ao {inst.diploma_principal}]
+[⚠️ Artigo incerto → [art.?] — NUNCA inventar]
 
 == 6. DISPOSITIVO ==
-[OBRIGATÓRIO: "O Tribunal DECIDE:" seguido de CONDENA / ABSOLVE / JULGA]
-[Sanção concreta, prazo, montante quando aplicável]
+[OBRIGATÓRIO: "O Tribunal DECIDE:" + CONDENA/ABSOLVE/JULGA]
+[Sanção concreta, prazo, montante]
 
 == 7. CUSTAS E TAXA DE JUSTIÇA ==
-[Quem paga, estimativa]
 
 == 8. NOTA PARA O CIDADÃO ==
-[3-4 frases em linguagem acessível explicando a decisão ao leigo]
+[3-4 frases em linguagem acessível]
 
-⚠️ REGRA ABSOLUTA: Nunca inventar artigos de lei. Usa [art.?] se incerto.
 Máximo 1000 palavras."""
 
+    # ── Consistência e Incerteza ─────────────────────────────────────
     @staticmethod
-    def consistencia(inst: InstanciaJudicial, s_rigorosa: str, s_garantista: str, s_equilibrada: str) -> str:
+    def consistencia(
+        inst: InstanciaJudicial,
+        s_rigorosa: str,
+        s_garantista: str,
+        s_equilibrada: str,
+    ) -> str:
         return f"""És um analista jurídico especialista em {inst.nome}, República Portuguesa.
 
-Tens três {inst.termo_decisao}s do mesmo caso, proferidas por juízes com perfis diferentes
-(Rigoroso, Garantista, Equilibrado).
+Três {inst.termo_decisao}s do mesmo caso, por juízes com perfis distintos:
 
 === SENTENÇA RIGOROSA ===
 {s_rigorosa[:800]}
@@ -225,43 +255,144 @@ Tens três {inst.termo_decisao}s do mesmo caso, proferidas por juízes com perfi
 === SENTENÇA EQUILIBRADA ===
 {s_equilibrada[:800]}
 
-TAREFA: Produz um RELATÓRIO DE CONSISTÊNCIA E INCERTEZA com:
+Produz RELATÓRIO DE CONSISTÊNCIA E INCERTEZA:
 
 ## CONVERGÊNCIAS
-(factos e conclusões em que as 3 sentenças concordam — alta certeza jurídica)
+(factos e conclusões em que as 3 sentenças concordam — alta certeza)
 
 ## DIVERGÊNCIAS SUBSTANTIVAS
-(onde as sentenças diferem e porquê — revela incerteza e discricionariedade)
+(onde diferem e porquê — revela discricionariedade legítima)
 
 ## PONTOS FACTUAIS MAIS FRÁGEIS
-(factos cuja força probatória é questionada em pelo menos 1 sentença)
+(factos questionados em pelo menos 1 sentença)
 
 ## ARTIGOS JURÍDICOS CONTESTADOS
-(normas interpretadas de forma diferente pelas 3 sentenças)
+(normas interpretadas diferentemente)
 
 ## GRAU DE INCERTEZA GLOBAL
-(Baixo | Médio | Alto | Muito Alto + justificação)
+(Baixo | Médio | Alto | Muito Alto + justificação de 2-3 linhas)
 
 ## RECOMENDAÇÃO AO CIDADÃO
-(o que este grau de incerteza significa na prática — linguagem simples)
+(linguagem simples — o que este grau de incerteza significa na prática)
 
-Sê rigoroso, neutro e analítico. Máximo 600 palavras."""
+Rigoroso, neutro, analítico. Máximo 600 palavras."""
 
+    # ── TEDH — Comparação europeia ────────────────────────────────────
+    @staticmethod
+    def analise_tedh(
+        inst: InstanciaJudicial,
+        caso_pt: str,
+        ctx_tedh: str,
+        lingua: str = "pt",
+    ) -> str:
+        if lingua == "en":
+            return f"""You are a European human rights law expert specialising in ECtHR jurisprudence.
+
+Portuguese case summary:
+{caso_pt[:600]}
+
+Relevant ECtHR case law:
+{ctx_tedh[:1500]}
+
+Analyse this Portuguese case in light of ECtHR jurisprudence:
+
+## APPLICABLE CONVENTION ARTICLES
+(ECHR articles potentially engaged)
+
+## RELEVANT ECtHR PRECEDENTS
+(key cases and their holdings)
+
+## COMPLIANCE ASSESSMENT
+(would the Portuguese proceedings likely comply with ECHR standards?)
+
+## RISK OF STRASBOURG CHALLENGE
+(Low | Medium | High | Very High + reasoning)
+
+## RECOMMENDED SAFEGUARDS
+(to align with ECtHR standards)
+
+Be precise and cite specific ECtHR cases where possible. Max 600 words."""
+
+        return f"""És um especialista em direito europeu dos direitos humanos e jurisprudência do TEDH.
+
+Resumo do caso português:
+{caso_pt[:600]}
+
+Jurisprudência TEDH relevante:
+{ctx_tedh[:1500]}
+
+Analisa este caso português à luz da jurisprudência do TEDH:
+
+## ARTIGOS DA CONVENÇÃO APLICÁVEIS
+(artigos da CEDH potencialmente em causa)
+
+## PRECEDENTES DO TEDH RELEVANTES
+(casos-chave e respectivas decisões)
+
+## AVALIAÇÃO DE CONFORMIDADE
+(o processo português cumpriria os padrões CEDH?)
+
+## RISCO DE QUEIXA A ESTRASBURGO
+(Baixo | Médio | Alto | Muito Alto + fundamentação)
+
+## SALVAGUARDAS RECOMENDADAS
+(para alinhar com os padrões do TEDH)
+
+Sê preciso e cita casos TEDH concretos quando possível. Máximo 600 palavras."""
+
+    # ── Contraditório — feedback ao utilizador ────────────────────────
+    @staticmethod
+    def contraditorio_feedback(
+        inst: InstanciaJudicial,
+        argumento: str,
+        acusacao: str,
+        detetive: str,
+    ) -> str:
+        return f"""És o Juiz Presidente do {inst.nome}, República Portuguesa.
+
+O advogado de defesa apresentou o seguinte argumento em sede de contraditório:
+"{argumento}"
+
+CONTEXTO DO PROCESSO:
+Instrução: {detetive[:400]}
+Acusação: {acusacao[:400]}
+
+TAREFA: Avalia juridicamente o argumento do advogado de defesa.
+Responde como um juiz imparcial que aprecia o argumento:
+
+## ADMISSIBILIDADE DO ARGUMENTO
+(admitido | parcialmente admitido | inadmissível + razão)
+
+## FORÇA JURÍDICA
+(forte | moderada | fraca + justificação)
+
+## IMPACTO NA INSTRUÇÃO
+(como este argumento altera ou não a análise dos factos)
+
+## QUESTÕES DE DIREITO LEVANTADAS
+(artigos relevantes do {inst.diploma_principal})
+
+## NOTA AO ADVOGADO
+(orientação sobre como desenvolver ou reforçar o argumento)
+
+Linguagem jurídica formal mas clara. Máximo 400 palavras."""
+
+    # ── Extracção de PDF ─────────────────────────────────────────────
     @staticmethod
     def pdf_extraction(conteudo: str, tipo_doc: str) -> str:
-        return f"""És um especialista jurídico português. Foi-te apresentado um documento
-do tipo: {tipo_doc}
+        return f"""És um especialista jurídico português.
+Documento: {tipo_doc}
 
-Extrai e estrutura as informações relevantes para um processo judicial:
+Extrai e estrutura as informações relevantes para o processo:
 
 ## TIPO DE DOCUMENTO
-## PARTES IDENTIFICADAS (se aplicável)
+## PARTES IDENTIFICADAS
 ## DATAS RELEVANTES
-## FACTOS PRINCIPAIS DESCRITOS
-## VALORES / MONTANTES (se aplicável)
+## FACTOS PRINCIPAIS
+## VALORES / MONTANTES
 ## OBSERVAÇÕES PARA O PROCESSO
 
 Documento:
 {conteudo[:3000]}
 
-Sê conciso e preciso. Mantém terminologia jurídica portuguesa."""
+Conciso e preciso. Terminologia jurídica portuguesa."""
