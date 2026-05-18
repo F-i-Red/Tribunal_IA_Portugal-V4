@@ -13,6 +13,23 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+# ── Singleton CaseProcessor — instanciado uma vez, partilhado entre passos ──
+_processor_singleton = None
+_processor_lock = threading.Lock()
+
+def get_processor():
+    global _processor_singleton
+    with _processor_lock:
+        if _processor_singleton is None:
+            from src.pipeline.case_processor import CaseProcessor
+            _processor_singleton = CaseProcessor()
+    return _processor_singleton
+
+def reset_processor():
+    global _processor_singleton
+    with _processor_lock:
+        _processor_singleton = None
+
 st.set_page_config(
     page_title="Tribunal IA Portugal V6",
     page_icon="⚖️",
@@ -189,7 +206,20 @@ with st.sidebar:
         value=st.session_state.modo_contraditorio,
         help="Permite intervir como Advogado de Defesa antes das sentenças.",
     )
-    st.caption("🔬 RAG Híbrido + Reranking activos")
+    rag_modo_ui = st.radio(
+        "RAG:", ["💨 BM25 (rápido, sem download)", "🔬 Híbrido (embeddings, 118MB+)"],
+        horizontal=False, label_visibility="collapsed",
+        index=0,
+        help="BM25: sem downloads. Híbrido: descarrega modelo de embeddings (118MB mínimo)."
+    )
+    if "Híbrido" in rag_modo_ui:
+        import os
+        os.environ["RAG_MODO"] = "hibrido"
+        st.caption("⬇️ Primeiro arranque: descarrega modelo (~118MB)")
+    else:
+        import os
+        os.environ["RAG_MODO"] = "bm25"
+        st.caption("✅ BM25 activo — sem downloads")
 
     st.divider()
     try:
@@ -231,6 +261,11 @@ st.markdown("""
 Para situações reais: <a href="https://www.oa.pt" target="_blank">Ordem dos Advogados de Portugal</a>.
 </div>
 """, unsafe_allow_html=True)
+
+# Separação de papéis (colapsável)
+with st.expander("ℹ️ O que este sistema pode e não pode fazer — Declaração de Separação de Papéis", expanded=False):
+    from src.auditoria import DISCLAIMER_SEPARACAO_PAPEIS
+    st.code(DISCLAIMER_SEPARACAO_PAPEIS, language=None)
 
 # Config check
 os.environ.setdefault("BACKEND", st.session_state.backend)
@@ -279,6 +314,19 @@ if step == 1:
             st.session_state.instancia = opts[st.selectbox("Tribunal:", list(opts.keys()))]
 
     if st.button("▶ Avançar", type="primary", disabled=not case_input.strip()):
+        # Validar input antes de avançar
+        try:
+            from src.auditoria import validar_input
+            val = validar_input(case_input, campo="caso")
+            if not val.valido:
+                st.error(f"❌ {'; '.join(val.avisos)}")
+                st.stop()
+            if val.avisos:
+                for av in val.avisos:
+                    st.warning(f"⚠️ {av}")
+            case_input = val.texto_sanitizado or case_input
+        except ImportError:
+            pass
         st.session_state.case_description = case_input
         if st.session_state.auto_detect:
             from src.pipeline.instancias import detectar_instancia_por_keywords
@@ -352,15 +400,14 @@ elif step == 3:
 
         def _gerar():
             try:
-                from src.pipeline.case_processor import CaseProcessor
-                _res["perguntas"] = CaseProcessor().gerar_perguntas_instrucao(_case, _inst)
+                _res["perguntas"] = get_processor().gerar_perguntas_instrucao(_case, _inst)
             except Exception as ex:
                 _res["erro"] = str(ex)
 
         t = threading.Thread(target=_gerar, daemon=True)
         t.start()
         with st.spinner("A gerar perguntas específicas ao caso..."):
-            t.join(timeout=90)
+            t.join(timeout=150)  # free models: 60-120s
 
         if t.is_alive():
             st.session_state.perguntas = {"perguntas":[], "introducao":"", "_timeout": True}
@@ -372,7 +419,8 @@ elif step == 3:
 
     perguntas = st.session_state.perguntas
     if perguntas.get("_timeout") or perguntas.get("_erro"):
-        msg = "⏱️ Tempo esgotado." if perguntas.get("_timeout") else f"❌ {perguntas.get('_erro','')[:150]}"
+        msg = ("⏱️ Tempo esgotado (150s). Com modelos gratuitos isto é normal — "  
+               "tenta de novo ou usa o botão Saltar.") if perguntas.get("_timeout") else f"❌ {perguntas.get('_erro','')[:150]}"
         st.error(msg)
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -588,8 +636,8 @@ elif step == 5:
             from src.utils.config import reset_config
             from src.utils.brain import reset_brain
             reset_config(); reset_brain()
-            from src.pipeline.case_processor import CaseProcessor
-            proc = CaseProcessor()
+            reset_processor()  # forçar re-criação com novo modelo/config
+            proc = get_processor()
             _res5["resultado"] = proc.process(
                 case_description=_case_p5,
                 instancia_codigo=_inst_p5,
@@ -657,7 +705,7 @@ elif step == 6:
 
     tabs = st.tabs([
         "📋 Peças", "⚖️ Sentenças", "📊 Consistência",
-        "🌍 TEDH", "📄 Ata", "🕐 Histórico",
+        "🌍 TEDH", "📄 Ata", "🔗 Auditoria", "🕐 Histórico",
     ])
 
     with tabs[0]:
@@ -732,6 +780,50 @@ elif step == 6:
             st.caption(f"`{result.case_id}` | Hash: `{result.doc_hash}`")
 
     with tabs[5]:
+        st.markdown("#### 🔗 Cadeia de Auditoria — Git Jurídico")
+        try:
+            from src.auditoria import get_cadeia_auditoria, analisar_dissenso, DISCLAIMER_SEPARACAO_PAPEIS
+            cadeia = get_cadeia_auditoria()
+            resumo_c = cadeia.resumo()
+            c1, c2, c3 = st.columns(3)
+            with c1: st.metric("Blocos na cadeia", resumo_c["total_blocos"])
+            with c2: st.metric("Integridade", "✅ OK" if resumo_c["cadeia_integra"] else "❌ FALHOU")
+            with c3:
+                ultimo = resumo_c.get("ultimo_hash","—")
+                st.metric("Último hash", f"{ultimo[:16]}..." if ultimo else "—")
+
+            if not resumo_c["cadeia_integra"]:
+                for err in resumo_c["erros"]:
+                    st.error(f"⚠️ {err}")
+
+            # Voto de vencido
+            if result.voto_vencido:
+                vv = result.voto_vencido
+                st.markdown("---")
+                st.markdown("#### 🗳️ Voto de Vencido")
+                st.warning(
+                    f"O juiz **{vv.perfil_divergente.title()}** discordou da maioria "
+                    f"({vv.sentido_divergente}).\n\n"
+                    f"**Fundamento:** {vv.fundamento_resumo[:300]}"
+                )
+                if vv.artigos_divergentes:
+                    st.caption(f"Artigos em causa: {', '.join(vv.artigos_divergentes)}")
+            else:
+                st.info("Sem voto de vencido — os 3 perfis convergiram na decisão.")
+
+            # Exportar cadeia
+            st.markdown("---")
+            aud_txt = cadeia.exportar_auditoria()
+            st.download_button("⬇️ Exportar cadeia de auditoria", data=aud_txt,
+                               file_name="auditoria_tribunal_ia.txt", mime="text/plain")
+
+            # Declaração de separação de papéis
+            with st.expander("📋 Declaração de Separação de Papéis"):
+                st.code(DISCLAIMER_SEPARACAO_PAPEIS, language=None)
+        except Exception as ex:
+            st.warning(f"Auditoria: {ex}")
+
+    with tabs[6]:
         st.markdown("#### 🕐 Histórico")
         try:
             from src.historico import get_historico

@@ -49,7 +49,7 @@ def main() -> None:
 
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
-║  🏛️  TRIBUNAL IA PORTUGAL V6 — API REST                      ║
+║  🏛️  TRIBUNAL IA PORTUGAL V7 — API REST                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
   Modelo    : {cfg.modelo_activo} [{cfg.backend}]

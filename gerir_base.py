@@ -134,6 +134,22 @@ def main():
         n = limpar_cache(dias=0)
         print(f"🗑️  Cache limpo: {n} entradas removidas")
 
+    if args.auditoria or args.verificar_cadeia:
+        from src.auditoria import get_cadeia_auditoria
+        cadeia = get_cadeia_auditoria()
+        if args.verificar_cadeia:
+            ok, erros = cadeia.verificar_integridade()
+            print(f"\nIntegridade da cadeia: {'✅ OK' if ok else '❌ COMPROMETIDA'}")
+            if erros:
+                for e in erros: print(f"  ⚠️  {e}")
+            print(f"Total de blocos: {cadeia.resumo()['total_blocos']}")
+        else:
+            txt = cadeia.exportar_auditoria()
+            print(txt)
+            output = "cadeia_auditoria.txt"
+            open(output, "w", encoding="utf-8").write(txt)
+            print(f"\n✅ Cadeia exportada para: {output}")
+
     if args.historico:
         from src.historico import get_historico
         hist = get_historico()

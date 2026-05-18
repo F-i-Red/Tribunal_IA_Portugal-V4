@@ -1,6 +1,4 @@
-# ═══════════════════════════════════════════════════════════════
-#  Tribunal IA Portugal V6 — Dependências
-# ═══════════════════════════════════════════════════════════════
+# Tribunal IA Portugal V7
 
 # Core
 httpx>=0.28.0
@@ -10,44 +8,44 @@ pydantic-settings>=2.3.0
 tenacity>=9.0.0
 typing-extensions>=4.11.0
 
-# Interface Streamlit
+# Interface
 streamlit>=1.38.0
 
 # CLI
 typer>=0.12.0
 rich>=13.7.0
 
-# Logging estruturado
+# Logging
 structlog>=24.1.0
 
-# ── RAG Híbrido (ACTIVO POR DEFEITO em V6) ───────────────────
-# Embeddings multilinguais optimizados para Português
+# RAG V7 — embeddings PT + reranking
 sentence-transformers>=3.0.0
-# Inclui numpy e torch CPU automaticamente
+numpy>=1.26.0
+# cohere>=5.0.0  # opcional: Cohere Rerank API
 
-# Reranking cross-encoder
-# (usa o mesmo pacote sentence-transformers)
-
-# ── Orquestração LangGraph ────────────────────────────────────
+# Orquestração
 langgraph>=0.2.0
 langchain-core>=0.3.0
 
-# ── API REST FastAPI ──────────────────────────────────────────
+# API REST + Produção
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+slowapi>=0.1.9
 
-# ── PDF ───────────────────────────────────────────────────────
+# Observability
+prometheus-client>=0.20.0
+opentelemetry-api>=1.24.0
+opentelemetry-sdk>=1.24.0
+opentelemetry-instrumentation-fastapi>=0.45b0
+
+# PDF
 PyMuPDF>=1.24.0
 reportlab>=4.2.0
 
-# ── Testes ───────────────────────────────────────────────────
+# Testes
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
-httpx>=0.28.0   # para testar FastAPI
-
-# ── Notas ─────────────────────────────────────────────────────
-# sentence-transformers instala automaticamente:
-#   torch (CPU), numpy, transformers, huggingface-hub
-# Para GPU: pip install torch --index-url https://download.pytorch.org/whl/cu121
-# Para Ollama local: não requer dependências extra
+respx>=0.21.0
