@@ -43,6 +43,7 @@ class EstadoCaso(TypedDict, total=False):
     dados_instrucao: Optional[Dict]
     pdf_docs: Optional[List[str]]
     intervencao_utilizador: Optional[str]
+    defesa_pre_gerada: Optional[str]      # defesa gerada no modo contraditório
 
     # Computado
     anon_text: str
@@ -286,6 +287,10 @@ class CaseProcessor:
 
     def _node_defesa(self, estado: EstadoCaso) -> EstadoCaso:
         self.logger.set_agent("defesa")
+        # Reutilizar defesa pré-gerada do modo contraditório (se disponível)
+        if estado.get("defesa_pre_gerada"):
+            self.logger.info("Defesa pré-gerada reutilizada (modo contraditório).")
+            return {**estado, "defesa": estado["defesa_pre_gerada"]}
         result = self._defesa.executar(
             estado["anon_text"], estado["detetive"], estado["acusacao"],
             estado["ctx_rag"], estado["inst"],
@@ -377,6 +382,7 @@ class CaseProcessor:
         gerar_pdf: bool = True,
         pdf_docs_extraidos: Optional[List[str]] = None,
         intervencao_utilizador: Optional[str] = None,
+        defesa_pre_gerada: Optional[str] = None,
     ) -> CaseResult:
 
         # Validar input — threat model básico
@@ -403,11 +409,13 @@ class CaseProcessor:
             estado_final = self._orquestrar_langgraph(
                 case_description, instancia_codigo, inst,
                 dados_instrucao, pdf_docs_extraidos, intervencao_utilizador,
+                defesa_pre_gerada,
             )
         else:
             estado_final = self._orquestrar_imperativo(
                 case_description, instancia_codigo, inst,
                 dados_instrucao, pdf_docs_extraidos, intervencao_utilizador,
+                defesa_pre_gerada,
             )
 
         # ── Montar ata ────────────────────────────────────────────────
@@ -499,6 +507,7 @@ class CaseProcessor:
     def _orquestrar_langgraph(
         self, case_description, instancia_codigo, inst,
         dados_instrucao, pdf_docs, intervencao_utilizador,
+        defesa_pre_gerada=None,
     ) -> Dict:
         estado_inicial: EstadoCaso = {
             "case_description": case_description,
@@ -506,6 +515,7 @@ class CaseProcessor:
             "dados_instrucao": dados_instrucao,
             "pdf_docs": pdf_docs,
             "intervencao_utilizador": intervencao_utilizador,
+            "defesa_pre_gerada": defesa_pre_gerada,
             "inst": inst,
         }
         try:
@@ -515,12 +525,14 @@ class CaseProcessor:
             return self._orquestrar_imperativo(
                 case_description, instancia_codigo, inst,
                 dados_instrucao, pdf_docs, intervencao_utilizador,
+                defesa_pre_gerada,
             )
 
     # ── Imperativo (fallback robusto) ─────────────────────────────────
     def _orquestrar_imperativo(
         self, case_description, instancia_codigo, inst,
         dados_instrucao, pdf_docs, intervencao_utilizador,
+        defesa_pre_gerada=None,
     ) -> Dict:
         # Anonimizar
         anon_text, entities = anonymize_text(case_description)
@@ -540,10 +552,16 @@ class CaseProcessor:
         # Agentes sequenciais
         detetive = self._detetive.executar(anon_text, ctx_instrucao, ctx_rag, inst)
         acusacao = self._acusacao.executar(anon_text, detetive, ctx_rag, inst)
-        defesa   = self._defesa.executar(
-            anon_text, detetive, acusacao, ctx_rag, inst,
-            intervencao_utilizador=intervencao_utilizador,
-        )
+
+        # Defesa — usa pré-gerada se disponível (modo contraditório)
+        if defesa_pre_gerada:
+            defesa = defesa_pre_gerada
+            self.logger.info("Defesa pré-gerada reutilizada do modo contraditório.")
+        else:
+            defesa = self._defesa.executar(
+                anon_text, detetive, acusacao, ctx_rag, inst,
+                intervencao_utilizador=intervencao_utilizador,
+            )
 
         # Sentenças — paralelo só se pago e configurado
         usar_paralelo = (
