@@ -109,6 +109,9 @@ def init_state():
         "sessao_contraditorio": None,
         "argumento_defesa": "",
         "feedback_contraditorio": "",
+        "_contr_detetive": None,
+        "_contr_acusacao": None,
+        "_contr_defesa": None,
     }
     for k, v in d.items():
         if k not in st.session_state:
@@ -204,7 +207,7 @@ with st.sidebar:
     st.session_state.modo_contraditorio = st.toggle(
         "⚔️ Modo Contraditório",
         value=st.session_state.modo_contraditorio,
-        help="Permite intervir como Advogado de Defesa antes das sentenças.",
+        help="Activa o turno completo de Acusação e Defesa antes das sentenças.",
     )
     rag_modo_ui = st.radio(
         "RAG:", ["💨 BM25 (rápido, sem download)", "🔬 Híbrido (embeddings, 118MB+)"],
@@ -314,7 +317,6 @@ if step == 1:
             st.session_state.instancia = opts[st.selectbox("Tribunal:", list(opts.keys()))]
 
     if st.button("▶ Avançar", type="primary", disabled=not case_input.strip()):
-        # Validar input antes de avançar
         try:
             from src.auditoria import validar_input
             val = validar_input(case_input, campo="caso")
@@ -334,6 +336,12 @@ if step == 1:
         st.session_state.perguntas = None
         st.session_state.respostas = {}
         st.session_state.pdf_docs = []
+        # Reset contraditório ao mudar de caso
+        st.session_state._contr_detetive = None
+        st.session_state._contr_acusacao = None
+        st.session_state._contr_defesa = None
+        st.session_state.feedback_contraditorio = ""
+        st.session_state.argumento_defesa = ""
         st.session_state.step = 2
         st.rerun()
 
@@ -407,7 +415,7 @@ elif step == 3:
         t = threading.Thread(target=_gerar, daemon=True)
         t.start()
         with st.spinner("A gerar perguntas específicas ao caso..."):
-            t.join(timeout=150)  # free models: 60-120s
+            t.join(timeout=150)
 
         if t.is_alive():
             st.session_state.perguntas = {"perguntas":[], "introducao":"", "_timeout": True}
@@ -419,7 +427,7 @@ elif step == 3:
 
     perguntas = st.session_state.perguntas
     if perguntas.get("_timeout") or perguntas.get("_erro"):
-        msg = ("⏱️ Tempo esgotado (150s). Com modelos gratuitos isto é normal — "  
+        msg = ("⏱️ Tempo esgotado (150s). Com modelos gratuitos isto é normal — "
                "tenta de novo ou usa o botão Saltar.") if perguntas.get("_timeout") else f"❌ {perguntas.get('_erro','')[:150]}"
         st.error(msg)
         c1, c2, c3 = st.columns(3)
@@ -475,12 +483,13 @@ elif step == 4:
     inst = INSTANCIAS[st.session_state.instancia]
     st.markdown(f"### ⚔️ Modo Contraditório — {inst.nome}")
     st.info(
-        "Neste modo és o **Advogado de Defesa**. "
-        "Após geramos a Instrução e a Acusação, podes apresentar os teus argumentos. "
-        "A Defesa final incorporará os teus argumentos e receberás avaliação jurídica."
+        "Neste modo vês o processo contraditório completo: "
+        "primeiro a **Acusação** apresenta os seus argumentos, "
+        "depois podes acrescentar os teus como **Advogado de Defesa** "
+        "e a IA gera a peça formal de defesa antes dos Juízes decidirem."
     )
 
-    # Precisamos de gerar detetive + acusação primeiro
+    # ── FASE 1: Gerar Instrução + Acusação ───────────────────────────
     if not st.session_state.get("_contr_acusacao"):
         _case = str(st.session_state.get("case_description", ""))
         _inst_cod = str(st.session_state.get("instancia", "TIC"))
@@ -501,7 +510,7 @@ elif step == 4:
 
         t = threading.Thread(target=_gerar_acusacao, daemon=True)
         t.start()
-        with st.spinner("A gerar Instrução e Acusação para o contraditório..."):
+        with st.spinner("⚔️ A gerar Instrução e Acusação..."):
             t.join(timeout=180)
 
         if _res2["erro"]:
@@ -512,30 +521,69 @@ elif step == 4:
 
         st.session_state._contr_detetive = _res2["detetive"]
         st.session_state._contr_acusacao = _res2["acusacao"]
+        st.session_state._contr_defesa = None
         st.rerun()
 
-    # Mostrar acusação
-    with st.expander("📄 Acusação gerada pelo sistema", expanded=True):
-        st.markdown(st.session_state._contr_acusacao or "")
+    # ── Layout lado a lado: Acusação | Defesa ────────────────────────
+    st.markdown("---")
+    col_acus, col_def = st.columns(2)
 
-    st.markdown("#### 🛡️ O teu argumento de defesa")
-    st.caption("Apresenta os argumentos que consideras relevantes para a defesa.")
+    with col_acus:
+        st.markdown("#### ⚔️ Alegações da Acusação")
+        st.markdown(
+            f'<div style="border-left:4px solid #c0392b; background:#fff5f5; '
+            f'border-radius:6px; padding:.8rem 1rem; min-height:200px;">'
+            f'{(st.session_state._contr_acusacao or "").replace(chr(10), "<br>")}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_def:
+        st.markdown("#### 🛡️ Alegações da Defesa")
+        if st.session_state.get("_contr_defesa"):
+            st.markdown(
+                f'<div style="border-left:4px solid #1e7e34; background:#f5fff7; '
+                f'border-radius:6px; padding:.8rem 1rem; min-height:200px;">'
+                f'{st.session_state._contr_defesa.replace(chr(10), "<br>")}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div style="border-left:4px solid #bbb; background:#f8f9fa; '
+                'border-radius:6px; padding:.8rem 1rem; min-height:200px; color:#888;">'
+                '🕐 A aguardar...<br><br>'
+                'Escreve os teus argumentos abaixo e clica em <strong>🛡️ Gerar Defesa</strong>.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("---")
+
+    # ── FASE 2: Argumento do advogado ────────────────────────────────
+    st.markdown("#### ✍️ O teu argumento de defesa")
+    st.caption(
+        "Apresenta os argumentos que consideras relevantes para a defesa. "
+        "A IA incorpora-os na peça formal. Podes regenerar quantas vezes quiseres."
+    )
 
     arg = st.text_area(
-        "Argumento:", value=st.session_state.argumento_defesa, height=160,
+        "Argumento:", value=st.session_state.argumento_defesa, height=150,
         placeholder=(
             "Ex: O meu cliente tem um álibi sólido para o período em causa — "
             "estava em Coimbra conforme provam as câmeras de segurança. "
             "Além disso, a prova documental apresentada pela acusação foi obtida ilegalmente..."
         ),
+        label_visibility="collapsed",
     )
     st.session_state.argumento_defesa = arg
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("⬅ Voltar"): st.session_state.step = 3; st.rerun()
-    with c2:
-        if st.button("💬 Avaliar argumento") and arg.strip():
+    c_aval, c_gerar, c_reset = st.columns(3)
+
+    # Botão: avaliar argumento (feedback rápido do juiz presidente)
+    with c_aval:
+        if st.button("💬 Avaliar argumento", disabled=not arg.strip(),
+                     help="O Juiz Presidente avalia a força jurídica do teu argumento."):
             _inst_cod2 = str(st.session_state.instancia)
             _arg = arg
             _acus = str(st.session_state._contr_acusacao or "")
@@ -555,20 +603,95 @@ elif step == 4:
 
             t2 = threading.Thread(target=_avaliar, daemon=True)
             t2.start()
-            with st.spinner("A avaliar o teu argumento..."):
-                t2.join(timeout=60)
+            with st.spinner("💬 A avaliar o argumento..."):
+                t2.join(timeout=90)
             st.session_state.feedback_contraditorio = _fb["feedback"]
             st.rerun()
-    with c3:
-        if st.button("▶ Avançar para Processo", type="primary"):
+
+    # Botão: gerar a defesa completa
+    with c_gerar:
+        if st.button("🛡️ Gerar Defesa", type="primary", disabled=not arg.strip(),
+                     help="Gera as alegações formais da defesa incorporando o teu argumento."):
+            _case_d = str(st.session_state.get("case_description", ""))
+            _inst_cod_d = str(st.session_state.get("instancia", "TIC"))
+            _arg_d = arg
+            _det_d = str(st.session_state._contr_detetive or "")
+            _acus_d = str(st.session_state._contr_acusacao or "")
+            _def_result: dict = {"defesa": None, "erro": None}
+
+            def _gerar_defesa():
+                try:
+                    from src.pipeline.case_processor import CaseProcessor
+                    from src.utils import anonymize_text as _anon
+                    from src.agents import DefesaAgent
+                    from src.utils.brain import get_brain
+                    from src.utils.logger import get_logger
+                    proc = CaseProcessor()
+                    anon, _ = _anon(_case_d)
+                    ctx = proc._rag_ctx(anon, instancia=_inst_cod_d)
+                    inst_obj = INSTANCIAS.get(_inst_cod_d, INSTANCIAS["TIC"])
+                    ag = DefesaAgent(get_brain(), get_logger())
+                    _def_result["defesa"] = ag.executar(
+                        anon, _det_d, _acus_d, ctx, inst_obj,
+                        intervencao_utilizador=_arg_d,
+                    )
+                except Exception as ex:
+                    _def_result["erro"] = str(ex)
+
+            t3 = threading.Thread(target=_gerar_defesa, daemon=True)
+            t3.start()
+            with st.spinner("🛡️ A gerar as Alegações da Defesa..."):
+                t3.join(timeout=180)
+
+            if _def_result["erro"]:
+                st.error(f"❌ Erro ao gerar defesa: {_def_result['erro'][:200]}")
+            elif _def_result["defesa"]:
+                st.session_state._contr_defesa = _def_result["defesa"]
+                st.success("✅ Defesa gerada! Revê acima e avança quando estiveres pronto.")
+            st.rerun()
+
+    # Botão: regenerar acusação (recomeçar contraditório)
+    with c_reset:
+        if st.button("🔄 Regenerar acusação",
+                     help="Apaga tudo e gera uma nova acusação."):
+            st.session_state._contr_acusacao = None
+            st.session_state._contr_detetive = None
+            st.session_state._contr_defesa = None
+            st.session_state.feedback_contraditorio = ""
+            st.rerun()
+
+    # Feedback do juiz ao argumento
+    if st.session_state.feedback_contraditorio:
+        with st.expander("💬 Avaliação jurídica do argumento pelo Juiz Presidente", expanded=True):
+            st.markdown(st.session_state.feedback_contraditorio)
+
+    st.markdown("---")
+
+    # Aviso se a defesa ainda não foi gerada
+    if not st.session_state.get("_contr_defesa"):
+        st.warning(
+            "⚠️ A Defesa ainda não foi gerada. "
+            "Clica em **🛡️ Gerar Defesa** para a IA produzir as alegações formais. "
+            "Se avançares sem gerar, a defesa será criada automaticamente no Passo 5 "
+            "sem o teu contributo pessoal."
+        )
+
+    # Navegação
+    c_vol, c_go = st.columns(2)
+    with c_vol:
+        if st.button("⬅ Voltar"):
+            st.session_state.step = 3; st.rerun()
+    with c_go:
+        label_go = (
+            "▶ Avançar para Processo (com defesa gerada)"
+            if st.session_state.get("_contr_defesa")
+            else "▶ Avançar (a defesa será gerada automaticamente)"
+        )
+        if st.button(label_go, type="primary"):
             st.session_state.step = 5
             st.session_state.resultado = None
             st.session_state.erro = None
             st.rerun()
-
-    if st.session_state.feedback_contraditorio:
-        st.markdown("#### 💬 Avaliação jurídica do teu argumento")
-        st.markdown(st.session_state.feedback_contraditorio)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -621,6 +744,8 @@ elif step == 5:
     _ollama_m5  = str(st.session_state.get("ollama_modelo","llama3.3:70b"))
     _ollama_u5  = str(st.session_state.get("ollama_url","http://localhost:11434"))
     _arg_def    = str(st.session_state.get("argumento_defesa","")).strip() or None
+    # Defesa pré-gerada no modo contraditório (evita regenerar)
+    _defesa_pre = str(st.session_state.get("_contr_defesa") or "").strip() or None
 
     _res5: dict = {"resultado": None, "erro": None}
 
@@ -636,7 +761,7 @@ elif step == 5:
             from src.utils.config import reset_config
             from src.utils.brain import reset_brain
             reset_config(); reset_brain()
-            reset_processor()  # forçar re-criação com novo modelo/config
+            reset_processor()
             proc = get_processor()
             _res5["resultado"] = proc.process(
                 case_description=_case_p5,
@@ -645,6 +770,7 @@ elif step == 5:
                 gerar_pdf=True,
                 pdf_docs_extraidos=_pdfs_p5 or None,
                 intervencao_utilizador=_arg_def,
+                defesa_pre_gerada=_defesa_pre,
             )
         except Exception as ex:
             _res5["erro"] = str(ex)
@@ -652,9 +778,17 @@ elif step == 5:
     t = threading.Thread(target=_processar, daemon=True)
     t.start()
 
-    agentes = ["🔍 Instrução", "⚔️ Acusação", "🛡️ Defesa",
-               "⚖️ Juiz Rigoroso","⚖️ Juiz Garantista","⚖️ Juiz Equilibrado",
-               "📊 Consistência","🌍 TEDH"]
+    # Barra de progresso — adapta se a defesa já foi gerada
+    if _defesa_pre:
+        agentes = ["🔍 Instrução", "⚔️ Acusação",
+                   "🛡️ Defesa (já gerada — a reutilizar)",
+                   "⚖️ Juiz Rigoroso","⚖️ Juiz Garantista","⚖️ Juiz Equilibrado",
+                   "📊 Consistência","🌍 TEDH"]
+    else:
+        agentes = ["🔍 Instrução", "⚔️ Acusação", "🛡️ Defesa",
+                   "⚖️ Juiz Rigoroso","⚖️ Juiz Garantista","⚖️ Juiz Equilibrado",
+                   "📊 Consistência","🌍 TEDH"]
+
     import time as _time
     prog = st.empty()
     for i, ag in enumerate(agentes):
@@ -718,8 +852,10 @@ elif step == 6:
             st.markdown(result.acusacao or "_Não disponível_")
         with c3:
             st.markdown("#### 🛡️ Defesa")
-            if st.session_state.argumento_defesa:
-                st.info(f"💬 Incluiu argumento do advogado de defesa")
+            if st.session_state.get("_contr_defesa"):
+                st.success("✅ Incorpora o teu argumento de defesa")
+            elif st.session_state.get("argumento_defesa"):
+                st.info("💬 Inclui argumento do advogado de defesa")
             st.markdown(result.defesa or "_Não disponível_")
         if result.validacao_citacoes:
             with st.expander("🔎 Validação de citações"):
@@ -744,7 +880,7 @@ elif step == 6:
         else:
             st.info("Não gerado.")
         import re
-        def disp(t): 
+        def disp(t):
             if not t: return "_N/D_"
             m = re.search(r"(?:CONDENA|ABSOLVE|JULGA)[^.]*\.", t, re.IGNORECASE)
             return (m.group(0)[:200] if m else t[:150]) + "..."
@@ -796,7 +932,6 @@ elif step == 6:
                 for err in resumo_c["erros"]:
                     st.error(f"⚠️ {err}")
 
-            # Voto de vencido
             if result.voto_vencido:
                 vv = result.voto_vencido
                 st.markdown("---")
@@ -811,13 +946,11 @@ elif step == 6:
             else:
                 st.info("Sem voto de vencido — os 3 perfis convergiram na decisão.")
 
-            # Exportar cadeia
             st.markdown("---")
             aud_txt = cadeia.exportar_auditoria()
             st.download_button("⬇️ Exportar cadeia de auditoria", data=aud_txt,
                                file_name="auditoria_tribunal_ia.txt", mime="text/plain")
 
-            # Declaração de separação de papéis
             with st.expander("📋 Declaração de Separação de Papéis"):
                 st.code(DISCLAIMER_SEPARACAO_PAPEIS, language=None)
         except Exception as ex:
